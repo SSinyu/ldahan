@@ -13,6 +13,41 @@ class log_dataloader(object):
         self.target_len = target_hour * 6
         self.day_log = 24 * 6
 
+    def get_batch_ver2(self, shuffle=True):
+        # remove the cross entropy part from get_batch()
+        if shuffle:
+            indices = np.arange(len(self.log_seq))
+            np.random.shuffle(indices)
+            log_seq = itemgetter(*indices)(self.log_seq)
+        else:
+            log_seq = self.log_seq
+
+        for user_i in range(0, len(log_seq)-self.batch_size, self.batch_size):
+            batch_user = log_seq[user_i:(user_i+self.batch_size)]
+
+            batch_hx, batch_y, user_ids = [], [], []
+            for user_id, user_log in batch_user:
+                day_length = np.random.randint(self.min_day, self.max_day+1)
+                seq_size = day_length * self.day_log
+                x_start = np.random.randint(0, len(user_log)-seq_size-self.target_len)
+                x_end = x_start + seq_size
+
+                subseq_x = user_log[x_start:x_end]
+                subseq_x = subseq_x + [0] * (self.max_day * self.day_log - len(subseq_x))
+                subseq_hx = [subseq_x[sub_i:(sub_i+self.day_log)] for sub_i in range(0, len(subseq_x), self.day_log)]
+                batch_hx.append(subseq_hx)
+
+                y_end = x_end + self.target_len
+                subseq_y = user_log[x_end: y_end]
+                batch_y.append(self.seq_to_ratio(subseq_y))
+
+                user_ids.append(user_id)
+
+            batch_hx = np.array(batch_hx)
+            batch_y = np.array(batch_y)
+            user_ids = np.array(user_ids)
+            yield batch_hx, batch_y, user_ids
+
     def get_batch(self, shuffle=True):
         if shuffle:
             indices = np.arange(len(self.log_seq))
@@ -24,9 +59,6 @@ class log_dataloader(object):
         for user_i in range(0, len(log_seq)-self.batch_size, self.batch_size):
             batch_user = log_seq[user_i:(user_i+self.batch_size)]
 
-            #batch_hx, batch_y, batch_x, user_id = self.han_feed(batch_user)
-            #user_ids, pivot_logs, target_logs = self.lda_feed(user_id, batch_x)
-            #batch_hx, batch_y, pivot_logs, target_logs, user_ids = self.get_feed(batch_user)
             batch_x, batch_hx, batch_y = [], [], []
             user_ids, pivot_logs, target_logs = [], [], []
 
