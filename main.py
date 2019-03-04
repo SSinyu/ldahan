@@ -26,8 +26,8 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--data_path', type=str, default='/home/datamininglab/Downloads/sinyu/')
-    parser.add_argument('--save_path', type=str, default='/home/datamininglab/Downloads/sinyu/save_hanlda')
+    parser.add_argument('--data_path', type=str, default='.Downloads/')
+    parser.add_argument('--save_path', type=str, default='.Downloads/save')
 
     parser.add_argument('--min_day', type=int, default=6)
     parser.add_argument('--max_day', type=int, default=10)
