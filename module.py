@@ -38,8 +38,8 @@ def Attention_(x, hidden_size):
     return out
 
 
-def fc_(x, hidden_size):
-    return layers.fully_connected(inputs=x, num_outputs=hidden_size, activation_fn=None)
+def fc_(x, hidden_size, activation_=None):
+    return layers.fully_connected(inputs=x, num_outputs=hidden_size, activation_fn=activation_)
 
 
 def dirichlet_likelihood(weights, n_topics, alpha=None):
