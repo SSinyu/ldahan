@@ -28,6 +28,7 @@ class HAN(object):
 
         with tf.variable_scope('mse_loss'):
             out = fc_(self.doc_vec, self.vocab_size)
+            out = tf.nn.softmax(out)
             self.loss_mse = tf.reduce_mean(tf.square(self.y-out))
 
     def han(self, han_embed):
@@ -105,6 +106,7 @@ class LDAHAN(object):
                 raise ValueError
 
             out = fc_(merged_doc_vector, self.vocab_size)
+            out = tf.nn.softmax(out)
             self.loss_mse = tf.reduce_mean(tf.square(self.y-out))
 
     def han(self, han_embed):
