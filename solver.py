@@ -124,38 +124,24 @@ class Solver(object):
                         self.save_array('train_loss_{}iter'.format(total_iters), np.array(train_loss_lst))
                         self.save_array('eval_loss_{}iter'.format(total_iters), np.array(eval_loss_lst))
                         self.save_fig(np.array(train_loss_lst), np.array(eval_loss_lst))
+                        
+            # save topic vector, user vector
+            topic_vec = sess.run(self.model.topic_matrix)
+            self.save_array('topic_vec_final', topic_vec)
 
-    def test(self):
-        del self.model
-        del self.saver
-        tf.reset_default_graph()
+            with open(os.path.join(self.data_path, 'log_input.pkl'), 'rb') as f:
+                log_data = pickle.load(f)
 
-        if self.m == 'ldahan':
-            self.model = LDAHAN(self.n_user, self.vocab_size, self.embed_size, self.n_topics)
-            f = os.path.join(self.save_path, 'ldahan.ckpt-{}'.format(self.test_iters))
-        elif self.m == 'han':
-            self.model = HAN(self.vocab_size, self.embed_size,)
-            f = os.path.join(self.save_path, 'han.ckpt-{}'.format(self.test_iters))
-        else:
-            raise ValueError
+            user_vec = np.zeros((100))
+            for user_id, user_log in tqdm(log_data):
+                user_log = np.array(user_log).reshape(1, 14, 144)
+                user_id = np.array(user_id).reshape(1,)
+                user_v = sess.run(self.model.merged_doc_vector, feed_dict={
+                    self.model.x: user_log,
+                    self.model.doc_ids: user_id})
+                user_vec = np.vstack((user_vec, user_v))
 
-        self.saver = tf.train.Saver()
-
-        with tf.Session() as sess:
-            self.saver.restore(sess, f)
-
-            doc_v = np.array([])
-            for i, (user_log, user_id) in enumerate(self.data_loader.test_loader):
-                if self.m == 'ldahan':
-                    feed_ = {self.model.x:user_log,
-                             self.model.doc_ids:user_id}
-                    doc_ = sess.run(self.model.doc_vec_HAN, feed_dict=feed_)
-                else:
-                    feed_ = {self.model.x:user_log}
-                    doc_ = sess.run(self.model.doc_vec, feed_dict=feed_)
-
-                doc_v = np.concatenate((doc_v, doc_))
-
+            self.save_array('user_vec_final', user_vec)
 
 
     def save_fig(self, train_loss, eval_loss):
