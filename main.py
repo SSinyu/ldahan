@@ -38,9 +38,9 @@ if __name__ == "__main__":
     parser.add_argument('--target_hour', type=int, default=3)
 
     parser.add_argument('--embed_size', type=int, default=100)
-    parser.add_argument('--pre_embed', type=bool, default=True)
-    parser.add_argument('--embed_tuning', type=bool, default=True)
-    parser.add_argument('--pre_doc', type=bool, default=True)
+    parser.add_argument('--word_init', type=bool, default=True)
+    parser.add_argument('--word_tuning', type=bool, default=True)
+    parser.add_argument('--doc_init', type=bool, default=True)
     parser.add_argument('--doc_tuning', type=bool, default=True)
     parser.add_argument('--lr', type=float, default=1e-6)
     parser.add_argument('--clip', type=float, default=5)
