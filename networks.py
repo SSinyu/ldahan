@@ -46,7 +46,7 @@ class HAN(object):
 
 
 class LDAHAN(object):
-    def __init__(self, n_documents, vocab_size, embed_size, n_topics, pre_embed=True, embed_tuning=True, embed_init_vec=None, pre_doc=True, doc_tuning=True, doc_init_vec=None, lda_dropout=0.3, lambda_=200, temperature=10.0, c='add'):
+    def __init__(self, n_documents, vocab_size, embed_size, n_topics, max_doc_len=10, pre_embed=True, embed_tuning=True, embed_init_vec=None, pre_doc=True, doc_tuning=True, doc_init_vec=None, lda_dropout=0.3, lambda_=200, temperature=10.0, c='add'):
         assert embed_size % 2 == 0
         tf.reset_default_graph()
 
@@ -64,7 +64,7 @@ class LDAHAN(object):
         self.lambda_ = lambda_
         self.temperature = temperature
         self.max_sent_length = 144
-        self.max_doc_length = 10
+        self.max_doc_length = max_doc_len
 
         # HAN placeholder
         self.batch_size = tf.placeholder(tf.int32, name='batch_size')
@@ -73,12 +73,12 @@ class LDAHAN(object):
         # LDA placeholder
         self.doc_ids = tf.placeholder(tf.int32, shape=[None,], name='doc_ids')
 
-        # word vector
+        # word init
         if pre_embed:
             self.word_init = tf.get_variable(shape=[self.vocab_size, self.embed_size], initializer=tf.constant_initializer(embed_init_vec), name='word_embed', trainable=self.embed_tuning)
         else:
             self.word_init = tf.Variable(tf.truncated_normal((self.vocab_size, self.embed_size)), trainable=self.embed_tuning, name='word_embed')
-
+    
         # HAN
         with tf.variable_scope('HAN'):
             self.doc_vec_HAN = self.han(self.word_init)
