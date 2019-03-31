@@ -11,24 +11,24 @@ from networks import LDAHAN, HAN
 class Solver(object):
     def __init__(self, args, data_loader=None):
         self.data_loader = data_loader
-
+        self.data_path = args.data_path
         self.save_path = args.save_path
         self.n_user = len(data_loader.log_seq)
-
         self.vocab_size = len(data_loader.log_vocab)
         self.n_topics = args.n_topics
         self.batch_size = args.batch_size
 
-        if args.pre_embed:
-            self.embed_init_vec = np.load(os.path.join(args.data_path, 'word_init.npy'))
-            self.embed_size = self.embed_init_vec.shape[1]
+        if args.word_init:
+            self.word_init = np.load(os.path.join(args.data_path, 'word_init.npy'))
+            self.embed_size = self.word_init.shape[1]
         else:
             self.embed_size = args.embed_size
-        self.embed_tuning = args.embed_tuning
+        
+        self.word_tuning = args.word_tuning
         # hidden_size = embed_size/2
 
-        if args.pre_doc:
-            self.doc_init_vec = np.load(os.path.join(args.data_path, 'doc_init.npy'))
+        if args.doc_init:
+            self.doc_init = np.load(os.path.join(args.data_path, 'doc_init.npy'))
         self.doc_tuning = args.doc_tuning
 
         self.num_epochs = args.num_epochs
@@ -40,18 +40,32 @@ class Solver(object):
 
         self.clip = args.clip
         self.lambda_ = args.lambda_
-
+        
         self.m = args.m
+        self.c = args.c
 
-        if self.m == 'ldahan':
-            self.model = LDAHAN(self.n_user, self.vocab_size, self.embed_size, self.n_topics, pre_embed=args.pre_embed, embed_tuning=self.embed_tuning, embed_init_vec=self.embed_init_vec, pre_doc=args.pre_doc, doc_tuning=self.doc_tuning, doc_init_vec=self.doc_init_vec, lambda_=self.lambda_)
-            self.saver = tf.train.Saver(tf.global_variables())
-            self.saver.export_meta_graph(os.path.join(self.save_path, 'LDA_HAN_graph.meta'))
-        elif self.m == 'han':
-            self.model = HAN(self.vocab_size, self.embed_size, args.pre_embed, self.embed_tuning, self.embed_init_vec)
+        if self.m == 'han':
+            self.model = HAN(vocab_size=self.vocab_size, 
+                             embed_size=self.embed_size, 
+                             max_doc_len=self.data_loader.max_day,
+                             word_init=self.word_init,
+                             word_tuning=self.word_tuning)
             self.saver = tf.train.Saver(tf.global_variables())
             self.saver.export_meta_graph(os.path.join(self.save_path, 'HAN_graph.meta'))
-        else:
+        elif self.m == 'ldahan':
+            self.model = LDAHAN(n_documents=self.n_user, 
+                                vocab_size=self.vocab_size,
+                                embed_size=self.embed_size, 
+                                n_topics=self.n_topics,
+                                max_doc_len=self.data_loader.max_day,
+                                word_init=self.word_init,
+                                word_tuning=self.word_tuning,
+                                doc_init=self.doc_init,
+                                doc_tuning=self.doc_tuning,
+                                lambda_=self.lambda_,
+                                c=self.c)
+            self.saver = tf.train.Saver(tf.global_variables())
+            self.saver.export_meta_graph(os.path.join(self.save_path, 'LDA_HAN_graph.meta'))
             raise ValueError
 
         self.global_step = tf.Variable(0, trainable=False)
@@ -114,35 +128,69 @@ class Solver(object):
                     if total_iters % self.save_iters == 0:
                         if self.m == 'ldahan':
                             self.saver.save(sess, os.path.join(self.save_path, 'ldahan.ckpt'), global_step=self.global_step)
-                            topic_vec = sess.run(self.model.topic_matrix)
-                            self.save_array('topic_vec_{}iter'.format(total_iters), topic_vec)
-
-
+                            # topic_vec = sess.run(self.model.topic_matrix)
+                            # self.save_array('topic_vec_{}iter'.format(total_iters), topic_vec)
                         else:
                             self.saver.save(sess, os.path.join(self.save_path, 'han.ckpt'), global_step=self.global_step)
 
-                        self.save_array('train_loss_{}iter'.format(total_iters), np.array(train_loss_lst))
-                        self.save_array('eval_loss_{}iter'.format(total_iters), np.array(eval_loss_lst))
+                        self.save_array('train_loss'.format(total_iters), np.array(train_loss_lst))
+                        self.save_array('eval_loss'.format(total_iters), np.array(eval_loss_lst))
                         self.save_fig(np.array(train_loss_lst), np.array(eval_loss_lst))
-                        
-            # save topic vector, user vector
+
+            # save topic vector, word vector, doc init vector
             topic_vec = sess.run(self.model.topic_matrix)
-            self.save_array('topic_vec_final', topic_vec)
+            self.save_array('topic_vec', topic_vec)
 
-            with open(os.path.join(self.data_path, 'log_input.pkl'), 'rb') as f:
-                log_data = pickle.load(f)
+            word_vec = sess.run(self.model.word_init)
+            self.save_array('word_init', word_vec)
 
-            user_vec = np.zeros((100))
-            for user_id, user_log in tqdm(log_data):
-                user_log = np.array(user_log).reshape(1, 14, 144)
-                user_id = np.array(user_id).reshape(1,)
-                user_v = sess.run(self.model.merged_doc_vector, feed_dict={
-                    self.model.x: user_log,
-                    self.model.doc_ids: user_id})
-                user_vec = np.vstack((user_vec, user_v))
+            doc_init_vec = sess.run(self.model.doc_init)
+            self.save_array('doc_init', doc_init_vec)
 
-            self.save_array('user_vec_final', user_vec)
+    def test(self):
+        tf.reset_default_graph()
+        
+        del self.model
+        
+        word_init = np.load(os.path.join(self.save_path, 'word_init.npy'))
+        doc_init = np.load(os.path.join(self.save_path, 'doc_init.npy'))
+            
+        if self.m == 'han':
+            pass
+        else:
+            model = LDAHAN(n_documents=self.n_user,
+                           vocab_size=self.vocab_size,
+                           embed_size=self.embed_size,
+                           n_topics=self.n_topics,
+                           max_doc_len=14,
+                           word_init=word_init,
+                           doc_init=doc_init,
+                           c=self.c)
+            load_path = os.path.join(self.save_path, 'ldahan.ckpt-100000')
+            
+        saver = tf.train.Saver()
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        saver.restore(sess, load_path)
 
+        log_data = self.data_loader.log_seq
+
+        # b = 100
+        user_vec = np.zeros((100,))
+        for i, (user_id, user_log) in enumerate(log_data):
+            user_id = np.array(user_id).reshape(1,)
+            user_log = np.array(user_log).reshape(1,14,144)
+            uv = sess.run(model.merged_doc_vector,
+                          feed_dict={model.x: user_log,
+                                     model.doc_ids: user_id})
+            user_vec = np.vstack((user_vec, uv))
+
+            printProgressBar(i, len(log_data),
+                             prefix='Compute user vector ..',
+                             suffix='Complete', length=25)
+
+        user_vec = user_vec[1:, :]
+        self.save_array('user_vec', user_vec)
 
     def save_fig(self, train_loss, eval_loss):
         if self.m == 'ldahan':
