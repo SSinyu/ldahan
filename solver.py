@@ -149,15 +149,20 @@ class Solver(object):
 
     def test(self):
         tf.reset_default_graph()
-        
         del self.model
         
         word_init = np.load(os.path.join(self.save_path, 'word_init.npy'))
-        doc_init = np.load(os.path.join(self.save_path, 'doc_init.npy'))
-            
+                    
         if self.m == 'han':
-            pass
+            model = HAN(vocab_size=self.vocab_size,
+                        embed_size=self.embed_size,
+                        max_doc_len=14,
+                        word_init=word_init)
+            load_path = os.path.join(self.save_path, 'han.ckpt-100000')
+            
         else:
+            doc_init = np.load(os.path.join(self.save_path, 'doc_init.npy'))
+        
             model = LDAHAN(n_documents=self.n_user,
                            vocab_size=self.vocab_size,
                            embed_size=self.embed_size,
@@ -178,11 +183,17 @@ class Solver(object):
         # b = 100
         user_vec = np.zeros((100,))
         for i, (user_id, user_log) in enumerate(log_data):
-            user_id = np.array(user_id).reshape(1,)
             user_log = np.array(user_log).reshape(1,14,144)
-            uv = sess.run(model.merged_doc_vector,
-                          feed_dict={model.x: user_log,
-                                     model.doc_ids: user_id})
+            
+            if self.m == 'han':
+                uv = sess.run(model.doc_vec,
+                              feed_dict={model.x: user_log})
+            else:
+                user_id = np.array(user_id).reshape(1,)
+                uv = sess.run(model.merged_doc_vector,
+                              feed_dict={model.x: user_log,
+                                         model.doc_ids: user_id})
+            
             user_vec = np.vstack((user_vec, uv))
 
             printProgressBar(i, len(log_data),
